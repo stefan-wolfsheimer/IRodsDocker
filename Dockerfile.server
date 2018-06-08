@@ -1,0 +1,38 @@
+FROM ubuntu:16.04
+
+# basic system
+RUN apt-get update &&\
+    apt-get install -y \
+    lsb-release \
+    wget \
+    apt-transport-https \
+    python-software-properties software-properties-common \
+    postgresql postgresql-client postgresql-contrib \
+    odbc-postgresql \
+    emacs
+
+# postgres
+RUN echo "host all  all    0.0.0.0/0  md5" >> /etc/postgresql/9.5/main/pg_hba.conf && \
+    echo "listen_addresses='*'" >> /etc/postgresql/9.5/main/postgresql.conf
+USER postgres
+RUN /etc/init.d/postgresql start &&\
+    psql --command "CREATE USER docker WITH SUPERUSER PASSWORD 'docker';" &&\
+    createdb -O docker docker &&\
+    psql --command "CREATE USER irods WITH PASSWORD 'testpassword';" &&\
+    psql --command 'CREATE DATABASE "ICAT";' &&\
+    psql --command 'GRANT ALL PRIVILEGES ON DATABASE "ICAT" TO irods;'
+USER root
+EXPOSE 5432
+
+# irods
+RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - && \
+      echo "deb [arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/renci-irods.list && \
+      apt-get update && \
+      apt-get install -y --allow-unauthenticated irods-server irods-database-plugin-postgres
+
+ADD container/irods_ans.txt /irods_ans.txt
+ADD container/irods_setup.sh /irods_setup.sh
+
+CMD ["/bin/bash", "/irods_setup.sh"]
+
+
